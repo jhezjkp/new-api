@@ -324,6 +324,30 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+	if strings.Contains(info.UpstreamModelName, "vision") || strings.Contains(info.UpstreamModelName, "multimodal") {
+		// 多模态嵌入端点要求 input 为对象数组格式
+		// 若 input 已是数组（[]any），直接透传；若是字符串则包装成文本对象
+		switch v := request.Input.(type) {
+		case string:
+			request.Input = []any{map[string]any{"type": "text", "text": v}}
+		case []any:
+			// 已经是数组，检查是否为纯字符串数组，若是则转换
+			allStrings := true
+			for _, item := range v {
+				if _, ok := item.(string); !ok {
+					allStrings = false
+					break
+				}
+			}
+			if allStrings {
+				converted := make([]any, len(v))
+				for i, item := range v {
+					converted[i] = map[string]any{"type": "text", "text": item.(string)}
+				}
+				request.Input = converted
+			}
+		}
+	}
 	return request, nil
 }
 
